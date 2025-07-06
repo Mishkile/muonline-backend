@@ -248,9 +248,11 @@ router.post('/login', async (req, res) => {
     );
 
     // Update last login info
+    // Truncate IP to fit database constraint (varchar(16))
+    const clientIp = (req.ip || '127.0.0.1').substring(0, 16);
     await db.query(
       `UPDATE accounts_status SET last_ip = ?, last_online = NOW() WHERE account_id = ?`,
-      [req.ip || '127.0.0.1', user.guid]
+      [clientIp, user.guid]
     );
 
     res.json({
