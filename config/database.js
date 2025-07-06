@@ -20,13 +20,15 @@ const testConnection = async () => {
     const connection = await pool.getConnection();
     console.log('✅ Database connected successfully');
     connection.release();
+    return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
-    process.exit(1);
+    console.log('⚠️  Server will start without database. Configure remote access to enable database features.');
+    return false;
   }
 };
 
-// Initialize connection test
+// Initialize connection test (non-blocking)
 testConnection();
 
 module.exports = {

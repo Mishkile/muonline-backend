@@ -54,12 +54,25 @@ app.use('/api/guilds', guildsRoutes);
 app.use('/api/downloads', downloadsRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    const db = require('./config/database');
+    const connection = await db.getConnection();
+    await connection.execute('SELECT 1');
+    connection.release();
+    dbStatus = 'connected';
+  } catch (error) {
+    dbStatus = 'disconnected';
+  }
+
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    database: dbStatus,
+    version: '1.0.0'
   });
 });
 
