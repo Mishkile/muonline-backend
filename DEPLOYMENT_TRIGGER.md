@@ -2,4 +2,4 @@
 
 This file is used to trigger redeployments.
 
-Last trigger: 2025-07-06 - Database connection test after MariaDB remote access setup
+Last trigger: 2025-07-06 - Database connection test after MariaDB service restart
