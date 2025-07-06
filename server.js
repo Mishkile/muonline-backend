@@ -30,8 +30,12 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const corsOrigins = process.env.CORS_ORIGIN ? 
+  process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : 
+  ['http://localhost:5173'];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: corsOrigins,
   credentials: true,
   optionsSuccessStatus: 200
 }));
