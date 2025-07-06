@@ -5,10 +5,25 @@ const router = express.Router();
 // Get server status information
 router.get('/', async (req, res) => {
   try {
-    // Create fallback data first
-    const fallbackData = {
+    // Get real statistics from database
+    const [accountResult] = await db.execute('SELECT COUNT(*) as total_accounts FROM accounts');
+    const [characterResult] = await db.execute('SELECT COUNT(*) as total_characters FROM character_info');
+    const [onlineResult] = await db.execute('SELECT COUNT(*) as online_players FROM character_info WHERE online = 1');
+    const [guildResult] = await db.execute('SELECT COUNT(*) as total_guilds FROM guild_list');
+    const [topPlayerResult] = await db.execute('SELECT name, level, reset FROM character_info ORDER BY level DESC, reset DESC LIMIT 1');
+
+    const statistics = {
+      playersOnline: onlineResult[0].online_players,
+      totalAccounts: accountResult[0].total_accounts,
+      totalCharacters: characterResult[0].total_characters,
+      totalGuilds: guildResult[0].total_guilds,
+      topPlayer: topPlayerResult[0] || null,
+      castleOwner: "No Owner" // Default since we don't have castle siege data yet
+    };
+
+    const serverData = {
       server: {
-        name: "DV-Team S19.2.3",
+        name: "Mishki MU S19.2.3",
         season: "Season 19 Part 2-3",
         rates: {
           experience: "1000x",
@@ -31,14 +46,7 @@ router.get('/', async (req, res) => {
         maxResets: 999,
         status: "Online"
       },
-      statistics: {
-        playersOnline: 0,
-        totalAccounts: 0,
-        totalCharacters: 0,
-        totalGuilds: 0,
-        topPlayer: null,
-        castleOwner: null
-      },
+      statistics,
       events: [
         {
           id: 1,
