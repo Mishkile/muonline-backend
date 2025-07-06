@@ -5,22 +5,7 @@ const router = express.Router();
 // Get server status information
 router.get('/', async (req, res) => {
   try {
-    // Get real statistics from database
-    const [accountResult] = await db.execute('SELECT COUNT(*) as total_accounts FROM accounts');
-    const [characterResult] = await db.execute('SELECT COUNT(*) as total_characters FROM character_info');
-    const [onlineResult] = await db.execute('SELECT COUNT(*) as online_players FROM character_info WHERE online = 1');
-    const [guildResult] = await db.execute('SELECT COUNT(*) as total_guilds FROM guild_list');
-    const [topPlayerResult] = await db.execute('SELECT name, level, reset FROM character_info ORDER BY level DESC, reset DESC LIMIT 1');
-
-    const statistics = {
-      playersOnline: onlineResult[0].online_players,
-      totalAccounts: accountResult[0].total_accounts,
-      totalCharacters: characterResult[0].total_characters,
-      totalGuilds: guildResult[0].total_guilds,
-      topPlayer: topPlayerResult[0] || null,
-      castleOwner: "No Owner" // Default since we don't have castle siege data yet
-    };
-
+    // Default fallback data
     const serverData = {
       server: {
         name: "Mishki MU S19.2.3",
@@ -46,12 +31,19 @@ router.get('/', async (req, res) => {
         maxResets: 999,
         status: "Online"
       },
-      statistics,
+      statistics: {
+        playersOnline: 0,
+        totalAccounts: 0,
+        totalCharacters: 0,
+        totalGuilds: 0,
+        topPlayer: null,
+        castleOwner: "No Owner"
+      },
       events: [
         {
           id: 1,
           title: "Server Launch",
-          description: "Welcome to DV-Team Season 19 Part 2-3!",
+          description: "Welcome to Mishki MU Season 19 Part 2-3!",
           date: new Date().toISOString(),
           type: "announcement"
         },
@@ -66,63 +58,33 @@ router.get('/', async (req, res) => {
       lastUpdate: new Date().toISOString()
     };
 
-    // Try to get real data, but fall back to static data if queries fail
+    // Try to get real statistics from database
     try {
-      // Get online player count
-      const onlineResult = await db.queryOne(
-        'SELECT COUNT(*) as count FROM character_info WHERE online = 1'
-      ).catch(() => ({ count: 0 }));
+      const connection = await db.getConnection();
+      
+      const [accountResult] = await connection.execute('SELECT COUNT(*) as total_accounts FROM accounts');
+      const [characterResult] = await connection.execute('SELECT COUNT(*) as total_characters FROM character_info');
+      const [onlineResult] = await connection.execute('SELECT COUNT(*) as online_players FROM character_info WHERE online = 1');
+      const [guildResult] = await connection.execute('SELECT COUNT(*) as total_guilds FROM guild_list');
+      const [topPlayerResult] = await connection.execute('SELECT name, level, reset FROM character_info ORDER BY level DESC, reset DESC LIMIT 1');
+      
+      connection.release();
 
-      // Get total registered accounts
-      const accountsResult = await db.queryOne(
-        'SELECT COUNT(*) as count FROM accounts'
-      ).catch(() => ({ count: 0 }));
-
-      // Get total characters 
-      const charactersResult = await db.queryOne(
-        'SELECT COUNT(*) as count FROM character_info WHERE online >= 0'
-      ).catch(() => ({ count: 0 }));
-
-      // Get total guilds
-      const guildsResult = await db.queryOne(
-        'SELECT COUNT(*) as count FROM guild_list'
-      ).catch(() => ({ count: 0 }));
-
-      // Get top level player
-      const topPlayerResult = await db.queryOne(
-        `SELECT ci.name, ci.level, ci.reset, ci.race 
-         FROM character_info ci 
-         WHERE ci.online >= 0 
-         ORDER BY ci.level DESC, ci.experience DESC 
-         LIMIT 1`
-      ).catch(() => null);
-
-      // Get castle siege information - disabled due to missing table/columns
-      const castleResult = null; // TODO: implement when castle siege tables are available
-
-      // Update statistics with real data
-      fallbackData.statistics = {
-        playersOnline: onlineResult.count || 0,
-        totalAccounts: accountsResult.count || 0,
-        totalCharacters: charactersResult.count || 0,
-        totalGuilds: guildsResult.count || 0,
-        topPlayer: topPlayerResult ? {
-          name: topPlayerResult.name,
-          level: topPlayerResult.level,
-          resets: topPlayerResult.reset || 0,
-          characterClass: getClassNameById(topPlayerResult.race)
-        } : null,
-        castleOwner: castleResult ? {
-          guildName: castleResult.guild_name,
-          guildMaster: 'N/A'
-        } : null
+      // Update with real data
+      serverData.statistics = {
+        playersOnline: onlineResult[0].online_players,
+        totalAccounts: accountResult[0].total_accounts,
+        totalCharacters: characterResult[0].total_characters,
+        totalGuilds: guildResult[0].total_guilds,
+        topPlayer: topPlayerResult[0] || null,
+        castleOwner: "No Owner" // Default since we don't have castle siege data yet
       };
     } catch (dbError) {
       console.error('Database error in server status (using fallback data):', dbError);
-      // Continue with fallback data
+      // Continue with fallback data - don't crash the server
     }
 
-    res.json(fallbackData);
+    res.json(serverData);
 
   } catch (error) {
     console.error('Server status error:', error);
@@ -134,33 +96,39 @@ router.get('/', async (req, res) => {
 router.get('/online', async (req, res) => {
   try {
     const { limit = 50 } = req.query;
-
-    const query = `
+    
+    const connection = await db.getConnection();
+    const [players] = await connection.execute(`
       SELECT 
         ci.name,
         ci.level,
+        ci.level_master,
         ci.reset,
         ci.race,
+        ci.world,
         ci.last_use
       FROM character_info ci
-      INNER JOIN accounts a ON ci.account_id = a.guid
       WHERE ci.online = 1
-      ORDER BY ci.level DESC
+      ORDER BY ci.level DESC, ci.reset DESC
       LIMIT ?
-    `;
+    `, [parseInt(limit)]);
+    
+    connection.release();
 
-    const onlinePlayers = await db.query(query, [parseInt(limit)]);
+    const formattedPlayers = players.map(player => ({
+      name: player.name,
+      level: player.level,
+      masterLevel: player.level_master || 0,
+      resets: player.reset || 0,
+      class: getCharacterClass(player.race),
+      location: getMapName(player.world),
+      lastActive: new Date(player.last_use * 1000).toISOString()
+    }));
 
     res.json({
-      players: onlinePlayers.map(player => ({
-        name: player.name,
-        level: player.level,
-        resets: player.reset || 0,
-        characterClass: getClassNameById(player.race),
-        guildName: 'None', // TODO: implement guild lookup when schema is clarified
-        lastOnline: player.last_use
-      })),
-      count: onlinePlayers.length
+      players: formattedPlayers,
+      total: formattedPlayers.length,
+      lastUpdate: new Date().toISOString()
     });
 
   } catch (error) {
@@ -169,8 +137,8 @@ router.get('/online', async (req, res) => {
   }
 });
 
-// Helper function to convert class ID to class name
-function getClassNameById(classId) {
+// Helper function to get character class name
+function getCharacterClass(classId) {
   const classes = {
     0: 'Dark Wizard', 1: 'Soul Master', 2: 'Grand Master', 3: 'Soul Wizard',
     16: 'Dark Knight', 17: 'Blade Knight', 18: 'Blade Master', 19: 'Dragon Knight',
@@ -189,6 +157,81 @@ function getClassNameById(classId) {
   };
   
   return classes[classId] || 'Unknown';
+}
+
+// Helper function to get map name
+function getMapName(mapId) {
+  const maps = {
+    0: 'Lorencia',
+    1: 'Dungeon',
+    2: 'Devias', 
+    3: 'Noria',
+    4: 'Lost Tower',
+    5: 'Exile',
+    6: 'Arena',
+    7: 'Atlans',
+    8: 'Tarkan',
+    9: 'Devil Square',
+    10: 'Icarus',
+    11: 'Blood Castle 1',
+    12: 'Blood Castle 2',
+    13: 'Blood Castle 3',
+    14: 'Blood Castle 4',
+    15: 'Blood Castle 5',
+    16: 'Blood Castle 6',
+    17: 'Blood Castle 7',
+    18: 'Chaos Castle 1',
+    19: 'Chaos Castle 2',
+    20: 'Chaos Castle 3',
+    21: 'Chaos Castle 4',
+    22: 'Chaos Castle 5',
+    23: 'Chaos Castle 6',
+    24: 'Kalima 1',
+    25: 'Kalima 2',
+    26: 'Kalima 3',
+    27: 'Kalima 4',
+    28: 'Kalima 5',
+    29: 'Kalima 6',
+    30: 'Valley of Loren',
+    31: 'Land of Trials',
+    32: 'Devil Square 2',
+    33: 'Aida',
+    34: 'Crywolf Fortress',
+    37: 'Kanturu 1',
+    38: 'Kanturu 2',
+    39: 'Kanturu 3',
+    40: 'Silent Map',
+    41: 'Barracks of Balgass',
+    42: 'Balgass Refuge',
+    45: 'Illusion Temple 1',
+    46: 'Illusion Temple 2',
+    47: 'Illusion Temple 3',
+    48: 'Illusion Temple 4',
+    49: 'Illusion Temple 5',
+    50: 'Illusion Temple 6',
+    51: 'Elbeland',
+    52: 'Blood Castle 8',
+    53: 'Chaos Castle 7',
+    56: 'Swamp of Calmness',
+    57: 'Raklion',
+    58: 'Raklion Boss',
+    62: 'Santa Village',
+    63: 'Vulcanus',
+    64: 'Duel Arena',
+    65: 'Doppelganger 1',
+    66: 'Doppelganger 2',
+    67: 'Doppelganger 3',
+    68: 'Doppelganger 4',
+    69: 'Imperial Guardian 1',
+    70: 'Imperial Guardian 2',
+    71: 'Imperial Guardian 3',
+    72: 'Imperial Guardian 4',
+    79: 'Loren Market',
+    80: 'Karutan 1',
+    81: 'Karutan 2'
+  };
+  
+  return maps[mapId] || 'Unknown';
 }
 
 module.exports = router;

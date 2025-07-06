@@ -181,7 +181,7 @@ router.post('/login', async (req, res) => {
                 ad.vip_status, ad.credits, ad.web_credits
          FROM accounts a
          LEFT JOIN account_data ad ON a.guid = ad.account_id
-         WHERE a.account = ? AND a.password = ?`,
+         WHERE UPPER(a.account) = UPPER(?) AND a.password = ?`,
         [username, hash]
       );
 
@@ -200,7 +200,7 @@ router.post('/login', async (req, res) => {
                 ad.vip_status, ad.credits, ad.web_credits
          FROM accounts a
          LEFT JOIN account_data ad ON a.guid = ad.account_id
-         WHERE a.account = ?`,
+         WHERE UPPER(a.account) = UPPER(?)`,
         [username]
       );
 
@@ -208,8 +208,18 @@ router.post('/login', async (req, res) => {
         console.log('Found user, checking password manually...');
         console.log('Stored password hash:', userWithPassword.password);
         
-        // Check if any of our hashes match
-        for (const hash of possibleHashes) {
+        // Check if any of our hashes match, using the actual account name from DB
+        const actualAccountName = userWithPassword.account;
+        const correctHash = hashPassword(actualAccountName, password);
+        const additionalHashes = [
+          hashPassword(username, password), // User's input case
+          correctHash, // Database case
+          password, // Plain text fallback
+          crypto.createHash('sha256').update(password).digest('hex'), // Standard SHA-256
+          crypto.createHash('md5').update(password).digest('hex'), // MD5
+        ];
+        
+        for (const hash of additionalHashes) {
           if (hash === userWithPassword.password) {
             user = userWithPassword;
             matchedHash = hash;
