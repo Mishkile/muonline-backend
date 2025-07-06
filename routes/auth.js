@@ -102,6 +102,8 @@ router.post('/register', async (req, res) => {
       );
 
       // Step 3: Create accounts_status entry
+      // Truncate IP to fit database constraint (varchar(16))
+      const clientIp = (req.ip || '127.0.0.1').substring(0, 16);
       await connection.execute(
         `INSERT INTO accounts_status (
           account_id, server_group, current_server, start_server, 
@@ -109,7 +111,7 @@ router.post('/register', async (req, res) => {
           warp_auth_1, warp_auth_2, warp_auth_3, warp_auth_4, 
           last_ip, last_mac, last_online, online, disk_serial, type
         ) VALUES (?, 0, 0, 0, -1, -1, -1, -1, 0, 0, 0, 0, 0, ?, '00:00:00:00:00:00', NOW(), 0, 0, 0)`,
-        [accountId, req.ip || '127.0.0.1']
+        [accountId, clientIp]
       );
 
       // Step 4: Create accounts_security entry
@@ -117,7 +119,7 @@ router.post('/register', async (req, res) => {
         `INSERT INTO accounts_security (
           account_id, account, ip, mac, disk_serial
         ) VALUES (?, ?, ?, '00:00:00:00:00:00', 0)`,
-        [accountId, username, req.ip || '127.0.0.1']
+        [accountId, username, clientIp]
       );
 
       // Step 5: Create accounts_validation entry
