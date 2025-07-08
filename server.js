@@ -3,7 +3,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
+
+// Load environment variables with explicit path
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const authRoutes = require('./routes/auth');
 const rankingsRoutes = require('./routes/rankings');
@@ -13,6 +15,7 @@ const newsRoutes = require('./routes/news');
 const userRoutes = require('./routes/user');
 const guildsRoutes = require('./routes/guilds');
 const downloadsRoutes = require('./routes/downloads');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -32,7 +35,7 @@ app.use(limiter);
 // CORS configuration
 const corsOrigins = process.env.CORS_ORIGIN ? 
   process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : 
-  ['http://localhost:5173'];
+  ['http://localhost:5173', 'http://localhost:3001', 'http://localhost:3000'];
 
 app.use(cors({
   origin: corsOrigins,
@@ -56,6 +59,7 @@ app.use('/api/news', newsRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/guilds', guildsRoutes);
 app.use('/api/downloads', downloadsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -104,5 +108,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 MU Online API Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔗 CORS Origin: ${process.env.CORS_ORIGIN}`);
+  console.log(`🔗 CORS Origins: ${corsOrigins.join(', ')}`);
 });
