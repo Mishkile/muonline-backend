@@ -11,9 +11,9 @@ router.get('/', async (req, res) => {
         name: "Mishki MU S19.2.3",
         season: "Season 19 Part 2-3",
         rates: {
-          experience: "1000x",
+          experience: "9999x",
           drop: "30%",
-          zen: "1000x",
+          zen: "9999x",
           jewel: "15%"
         },
         features: [
