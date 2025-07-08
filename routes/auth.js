@@ -178,7 +178,7 @@ router.post('/login', async (req, res) => {
     for (const hash of possibleHashes) {
       const tempUser = await db.queryOne(
         `SELECT a.guid, a.account, a.email, a.blocked, a.activated, a.password,
-                a.web_admin, a.gm_level,
+                a.web_admin,
                 ad.vip_status, ad.credits, ad.web_credits
          FROM accounts a
          LEFT JOIN account_data ad ON a.guid = ad.account_id
@@ -198,7 +198,7 @@ router.post('/login', async (req, res) => {
     if (!user) {
       const userWithPassword = await db.queryOne(
         `SELECT a.guid, a.account, a.email, a.blocked, a.activated, a.password,
-                a.web_admin, a.gm_level,
+                a.web_admin,
                 ad.vip_status, ad.credits, ad.web_credits
          FROM accounts a
          LEFT JOIN account_data ad ON a.guid = ad.account_id
@@ -278,7 +278,7 @@ router.post('/login', async (req, res) => {
         credits: user.credits || 0,
         webCredits: user.web_credits || 0,
         web_admin: user.web_admin || 0,
-        gmLevel: user.gm_level || 0
+        gmLevel: user.web_admin || 0
       }
     });
 
@@ -302,7 +302,7 @@ router.get('/verify', async (req, res) => {
     // Get fresh user data
     const user = await db.queryOne(
       `SELECT a.guid, a.account, a.email, a.blocked,
-              a.web_admin, a.gm_level,
+              a.web_admin,
               ad.vip_status, ad.credits, ad.web_credits
        FROM accounts a
        LEFT JOIN account_data ad ON a.guid = ad.account_id
@@ -323,7 +323,7 @@ router.get('/verify', async (req, res) => {
         credits: user.credits || 0,
         webCredits: user.web_credits || 0,
         web_admin: user.web_admin || 0,
-        gmLevel: user.gm_level || 0
+        gmLevel: user.web_admin || 0
       }
     });
 
